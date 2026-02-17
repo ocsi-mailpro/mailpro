@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MailPro — Trieur Intelligent</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #080c18;
+  --surface: #0f1629;
+  --surface2: #161d35;
+  --border: rgba(255,255,255,0.07);
+  --text: #f0f4ff;
+  --text2: #7b89b0;
+  --accent: #4f8dff;
+  --accent2: #a259ff;
+  --urgent: #ff4d6d;
+  --important: #ff8c42;
+  --normal: #ffd166;
+  --ok: #06d6a0;
+  --glow: rgba(79,141,255,0.15);
+}
+body.light {
+  --bg: #f0f4ff;
+  --surface: #ffffff;
+  --surface2: #e8edf8;
+  --border: rgba(0,0,0,0.08);
+  --text: #0f1629;
+  --text2: #5a6685;
+  --glow: rgba(79,141,255,0.08);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* LAYOUT */
+.app { display: flex; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 280px; min-width: 280px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; height: 100vh; overflow-y: auto;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 28px 24px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-mark {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.5em;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+.logo-sub { color: var(--text2); font-size: 0.75em; margin-top: 2px; }
+
+.sidebar-section { padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.sidebar-label {
+  font-size: 0.7em; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text2); margin-bottom: 14px;
+}
+
+/* STATUS INDICATOR */
+.status-dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; margin-right: 8px;
+  background: #555;
+}
+.status-dot.connected { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.status-dot.error { background: var(--urgent); }
+
+/* BUTTONS */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 11px 16px;
+  border-radius: 10px; border: none; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9em; font-weight: 600;
+  transition: all 0.2s; letter-spacing: 0.2px;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+}
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79,141,255,0.3); }
+.btn-outline {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 7px 14px; font-size: 0.82em; border-radius: 8px; }
+
+/* INPUTS */
+.input, .textarea, select.input {
+  width: 100%; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); padding: 10px 14px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.88em;
+  transition: border-color 0.2s; outline: none;
+  appearance: none;
+}
+.input:focus, .textarea:focus, select.input:focus { border-color: var(--accent); }
+.textarea { resize: vertical; min-height: 70px; }
+.input-label { font-size: 0.78em; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+
+/* MAIN CONTENT */
+.main { margin-left: 280px; flex: 1; }
+
+/* TOPBAR */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-title { font-family: 'Syne', sans-serif; font-size: 1.1em; font-weight: 700; }
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1em; transition: all 0.2s;
+}
+.theme-toggle:hover { border-color: var(--accent); }
+
+/* PAGE CONTENT */
+.page { padding: 32px; }
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-family: 'Syne', sans-serif; font-size: 1.15em; font-weight: 700;
+}
+
+/* KPIS */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+.kpi-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  position: relative; overflow: hidden; transition: all 0.25s;
+}
+.kpi-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.2); }
+.kpi-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px;
+}
+.kpi-card.total::after { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.kpi-card.urgent-card::after { background: var(--urgent); }
+.kpi-card.important-card::after { background: var(--important); }
+.kpi-card.ok-card::after { background: var(--ok); }
+.kpi-label { font-size: 0.72em; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); margin-bottom: 10px; }
+.kpi-value { font-family: 'Syne', sans-serif; font-size: 2.8em; font-weight: 800; line-height: 1; }
+.kpi-card.urgent-card .kpi-value { color: var(--urgent); }
+.kpi-card.important-card .kpi-value { color: var(--important); }
+.kpi-card.ok-card .kpi-value { color: var(--ok); }
+
+/* CHARTS */
+.charts-grid { display: grid; grid-template-columns: 1fr 1.6fr; gap: 20px; margin-bottom: 32px; }
+.chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px;
+}
+.chart-label {
+  font-size: 0.78em; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--text2); margin-bottom: 16px;
+}
+
+/* FILTERS */
+.filter-bar {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px 22px;
+  display: flex; gap: 14px; align-items: flex-end;
+  margin-bottom: 24px; flex-wrap: wrap;
+}
+.filter-group { flex: 1; min-width: 160px; }
+
+/* MAIL LIST */
+.mail-list { display: flex; flex-direction: column; gap: 10px; }
+
+.mail-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.mail-card:hover { border-color: rgba(79,141,255,0.3); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+.mail-card.unread { border-left: 3px solid var(--accent); }
+
+.mail-header {
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 14px;
+}
+.priority-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 0.72em; font-weight: 700; letter-spacing: 0.5px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.pill-urgent { background: rgba(255,77,109,0.15); color: var(--urgent); }
+.pill-important { background: rgba(255,140,66,0.15); color: var(--important); }
+.pill-normal { background: rgba(255,209,102,0.15); color: var(--normal); }
+.pill-ok { background: rgba(6,214,160,0.15); color: var(--ok); }
+
+.mail-info { flex: 1; min-width: 0; }
+.mail-subject {
+  font-weight: 600; font-size: 0.93em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mail-meta { font-size: 0.78em; color: var(--text2); margin-top: 3px; }
+.mail-date { font-size: 0.75em; color: var(--text2); flex-shrink: 0; }
+
+.mail-body { padding: 0 20px 16px; display: none; border-top: 1px solid var(--border); }
+.mail-body.open { display: block; padding-top: 16px; }
+.mail-preview { color: var(--text2); font-size: 0.87em; line-height: 1.6; margin-bottom: 14px; }
+.reasons-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.reason-tag {
+  font-size: 0.72em; padding: 3px 9px; border-radius: 6px;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+}
+.suggestion-box {
+  background: var(--surface2); border-radius: 10px; padding: 14px;
+  border: 1px solid var(--border);
+}
+.suggestion-label { font-size: 0.72em; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 8px; }
+.suggestion-text {
+  width: 100%; background: transparent; border: none;
+  color: var(--text); font-family: 'DM Sans', sans-serif;
+  font-size: 0.86em; line-height: 1.6; resize: vertical; min-height: 80px;
+  outline: none;
+}
+
+/* CONNECT SCREEN */
+.connect-screen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 60vh; text-align: center; padding: 32px;
+}
+.connect-icon { font-size: 4em; margin-bottom: 20px; }
+.connect-title { font-family: 'Syne', sans-serif; font-size: 1.8em; font-weight: 800; margin-bottom: 12px; }
+.connect-sub { color: var(--text2); max-width: 480px; line-height: 1.6; margin-bottom: 32px; }
+.connect-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; max-width: 600px; margin-bottom: 24px; }
+.connect-card {
+  background: var(--surface); border: 2px solid var(--border);
+  border-radius: 16px; padding: 24px;
+  cursor: pointer; transition: all 0.25s; text-align: center;
+}
+.connect-card:hover, .connect-card.active { border-color: var(--accent); background: var(--surface2); }
+.connect-card-icon { font-size: 2em; margin-bottom: 12px; }
+.connect-card-title { font-weight: 700; margin-bottom: 6px; }
+.connect-card-desc { font-size: 0.8em; color: var(--text2); }
+
+/* GRAPH AUTH FORM */
+.auth-form {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 28px; width: 100%; max-width: 500px; text-align: left;
+}
+.auth-form-title { font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: 6px; }
+.auth-form-sub { color: var(--text2); font-size: 0.85em; margin-bottom: 20px; line-height: 1.5; }
+.form-group { margin-bottom: 16px; }
+.alert {
+  padding: 12px 16px; border-radius: 10px; font-size: 0.85em;
+  margin-top: 12px; display: none;
+}
+.alert.error { background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3); color: var(--urgent); display: block; }
+.alert.success { background: rgba(6,214,160,0.1); border: 1px solid rgba(6,214,160,0.3); color: var(--ok); display: block; }
+.alert.info { background: rgba(79,141,255,0.1); border: 1px solid rgba(79,141,255,0.3); color: var(--accent); display: block; }
+
+/* LOADING */
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* EMPTY */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text2); }
+.empty-icon { font-size: 3em; margin-bottom: 16px; }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 20px;
+  font-size: 0.88em; font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.35s; z-index: 9999;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+@media (max-width: 900px) {
+  .sidebar { width: 100%; height: auto; position: relative; }
+  .main { margin-left: 0; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .connect-cards { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══════════════════ SIDEBAR ══════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">✉ MailPro</div>
+    <div class="logo-sub">Trieur intelligent de mails</div>
+  </div>
+
+  <!-- Connexion -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Connexion</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text" style="font-size:0.85em;color:var(--text2);">Non connecté</span>
+    </div>
+    <button class="btn btn-primary" onclick="showConnect()" id="btn-connect">
+      <span>🔌</span> Se connecter
+    </button>
+    <button class="btn btn-outline" onclick="disconnect()" id="btn-disconnect" style="margin-top:8px;display:none;">
+      ↩️ Déconnecter
+    </button>
+  </div>
+
+  <!-- Filtres rapides -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Filtres rapides</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <button class="btn btn-outline btn-sm" onclick="filterSidebar('')">📬 Tous les mails</button>
+      <button class="btn btn-outline btn-sm" onclick="filterSidebar('🔴 URGENT')" style="color:var(--urgent);border-color:rgba(255,77,109,0.3);">🔴 Urgents seulement</button>
+      <button class="btn btn-outline btn-sm" onclick="filterSidebar('unread')">📩 Non lus</button>
+    </div>
+  </div>
+
+  <!-- Paramètres -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Paramètres d'analyse</div>
+    <div class="form-group">
+      <div class="input-label">📌 Expéditeurs VIP (1 par ligne)</div>
+      <textarea class="textarea" id="vip-list" placeholder="nom@entreprise.com&#10;directeur@ocsi.fr" style="min-height:60px;"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="input-label">🚨 Mots urgents (1 par ligne)</div>
+      <textarea class="textarea" id="custom-words" placeholder="bloqué&#10;annulé" style="min-height:50px;"></textarea>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="reanalyze()" style="margin-top:4px;">🔄 Réanalyser</button>
+  </div>
+
+  <!-- Demo -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Démonstration</div>
+    <button class="btn btn-outline btn-sm" onclick="loadDemo()">🎮 Charger des exemples</button>
+  </div>
+
+  <!-- Theme -->
+  <div style="padding:20px 24px;margin-top:auto;">
+    <button class="btn btn-outline btn-sm" onclick="toggleTheme()" style="width:100%;">🌓 Changer le thème</button>
+  </div>
+</aside>
+
+<!-- ══════════════════ MAIN ══════════════════ -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-title">📧 Tableau de bord</div>
+    <div class="topbar-actions">
+      <span id="topbar-status" style="font-size:0.82em;color:var(--text2);"></span>
+      <button class="btn btn-sm btn-outline" onclick="refreshMails()" id="btn-refresh" style="display:none;">↻ Actualiser</button>
+      <button class="btn btn-sm btn-outline" onclick="exportCSV()" id="btn-export" style="display:none;">📥 Export CSV</button>
+    </div>
+  </div>
+
+  <!-- CONNECT SCREEN -->
+  <div id="connect-screen" class="connect-screen" style="display:none;">
+    <div class="connect-icon">📭</div>
+    <div class="connect-title">Connectez votre boîte mail</div>
+    <div class="connect-sub">Choisissez comment accéder à vos mails Outlook pour commencer l'analyse automatique.</div>
+
+    <div class="connect-cards">
+      <div class="connect-card" onclick="selectMode('graph')" id="card-graph">
+        <div class="connect-card-icon">☁️</div>
+        <div class="connect-card-title">Outlook / Microsoft 365</div>
+        <div class="connect-card-desc">Connexion sécurisée avec votre compte Microsoft. Fonctionne avec la nouvelle version d'Outlook.</div>
+      </div>
+      <div class="connect-card" onclick="selectMode('demo')" id="card-demo">
+        <div class="connect-card-icon">🎮</div>
+        <div class="connect-card-title">Mode démonstration</div>
+        <div class="connect-card-desc">Testez l'application avec des exemples sans connexion.</div>
+      </div>
+    </div>
+
+    <!-- Clean Microsoft Login -->
+    <div class="auth-form" id="graph-form" style="display:none;">
+      <div style="text-align:center;">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" 
+             style="width:32px;margin-bottom:16px;" alt="Microsoft">
+        <div class="auth-form-title">Connexion Microsoft</div>
+        <div class="auth-form-sub" style="text-align:center;">
+          Connectez votre boîte <strong>Outlook / Microsoft 365</strong><br>
+          en utilisant votre identifiant habituel.
+        </div>
+      </div>
+      
+      <!-- Big Microsoft login button -->
+      <button onclick="connectGraph()" class="btn" style="
+        background: #fff; color: #1a1a1a; border: 1px solid #ddd;
+        font-size: 1em; padding: 14px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center; gap: 12px;
+        width: 100%; margin-bottom: 12px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: box-shadow 0.2s;
+      " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.2)'"
+         onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" 
+             style="width:20px;" alt="M">
+        <strong>Se connecter avec Microsoft</strong>
+      </button>
+      
+      <div id="auth-alert"></div>
+
+      <!-- Admin section (hidden by default) -->
+      <div style="margin-top:16px;text-align:center;">
+        <button onclick="toggleAdminPanel()" style="background:none;border:none;color:var(--text2);font-size:0.78em;cursor:pointer;text-decoration:underline;">
+          ⚙️ Configuration administrateur
+        </button>
+      </div>
+      <div id="admin-panel" style="display:none;margin-top:12px;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
+        <div class="input-label">Client ID Azure (admin uniquement)</div>
+        <input type="text" class="input" id="client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="margin-bottom:8px;">
+        <button class="btn btn-sm btn-primary" onclick="saveClientId()" style="width:100%;">💾 Sauvegarder</button>
+        <div style="margin-top:8px;font-size:0.75em;color:var(--text2);">
+          Besoin d'un Client ID ? 
+          <a href="https://portal.azure.com" target="_blank" style="color:var(--accent);">portail Azure →</a>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:16px;">
+        <button class="btn btn-outline btn-sm" onclick="hideConnect()" style="width:auto;">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="page" style="display:none;">
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card total">
+        <div class="kpi-label">📬 Total</div>
+        <div class="kpi-value" id="kpi-total">0</div>
+      </div>
+      <div class="kpi-card urgent-card">
+        <div class="kpi-label">🔴 Urgents</div>
+        <div class="kpi-value" id="kpi-urgent">0</div>
+      </div>
+      <div class="kpi-card important-card">
+        <div class="kpi-label">🟠 Importants</div>
+        <div class="kpi-value" id="kpi-important">0</div>
+      </div>
+      <div class="kpi-card ok-card">
+        <div class="kpi-label">📩 Non lus</div>
+        <div class="kpi-value" id="kpi-unread">0</div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-label">Répartition par priorité</div>
+        <canvas id="chart-pie" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-label">Top expéditeurs</div>
+        <canvas id="chart-bar" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <div class="input-label">Rechercher</div>
+        <input type="text" class="input" id="f-search" placeholder="Sujet, expéditeur..." oninput="applyFilters()">
+      </div>
+      <div class="filter-group">
+        <div class="input-label">Priorité</div>
+        <select class="input" id="f-prio" onchange="applyFilters()">
+          <option value="">Toutes</option>
+          <option value="🔴 URGENT">🔴 Urgent</option>
+          <option value="🟠 IMPORTANT">🟠 Important</option>
+          <option value="🟡 NORMAL">🟡 Normal</option>
+          <option value="🟢 À TRAITER">🟢 À traiter</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <div class="input-label">Statut</div>
+        <select class="input" id="f-lu" onchange="applyFilters()">
+          <option value="">Tous</option>
+          <option value="unread">Non lus</option>
+          <option value="read">Lus</option>
+        </select>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="resetFilters()" style="flex-shrink:0;align-self:flex-end;padding:10px 16px;">✕ Réinitialiser</button>
+    </div>
+
+    <!-- MAIL LIST -->
+    <div class="section-header">
+      <div class="section-title">📋 Liste des mails <span id="mail-count" style="color:var(--text2);font-size:0.7em;font-weight:400;margin-left:8px;font-family:'DM Sans';"></span></div>
+    </div>
+    <div class="mail-list" id="mail-list"></div>
+  </div>
+
+  <!-- EMPTY / WELCOME -->
+  <div id="welcome-screen" class="connect-screen">
+    <div class="connect-icon">✉️</div>
+    <div class="connect-title">Bienvenue sur MailPro</div>
+    <div class="connect-sub">Votre assistant intelligent pour trier, analyser et prioriser vos mails automatiquement. Connectez votre boîte Outlook pour commencer.</div>
+    <button class="btn btn-primary" onclick="showConnect()" style="width:auto;padding:14px 32px;">
+      🔌 Connecter ma boîte mail
+    </button>
+    <div style="margin-top:20px;">
+      <button class="btn btn-outline" onclick="loadDemo()" style="width:auto;padding:10px 24px;">
+        🎮 Essayer avec la démo
+      </button>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let allMails = [];
+let filteredMails = [];
+let authToken = null;
+let charts = {};
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+window.onload = () => {
+  if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+  // Client ID pre-configured — no setup needed for users
+  localStorage.setItem('mailpro_clientid', '3b031c53-24b1-4651-9ae6-7959068e2d24');
+  // Check saved token
+  const saved = localStorage.getItem('mailpro_token');
+  if (saved) {
+    authToken = saved;
+    fetchMails();
+  }
+};
+
+// ═══════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  if (Object.keys(charts).length) renderCharts();
+}
+
+// ═══════════════════════════════════════════════
+// CONNEXION UI
+// ═══════════════════════════════════════════════
+function showConnect() {
+  document.getElementById('welcome-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('connect-screen').style.display = 'flex';
+}
+function hideConnect() {
+  document.getElementById('connect-screen').style.display = 'none';
+  if (allMails.length) document.getElementById('dashboard').style.display = 'block';
+  else document.getElementById('welcome-screen').style.display = 'flex';
+}
+function selectMode(mode) {
+  document.querySelectorAll('.connect-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('card-' + mode).classList.add('active');
+  document.getElementById('graph-form').style.display = mode === 'graph' ? 'block' : 'none';
+  if (mode === 'demo') loadDemo();
+}
+
+// ═══════════════════════════════════════════════
+// MICROSOFT GRAPH API CONNECTION
+// ═══════════════════════════════════════════════
+// Admin saves Client ID (admin only, hidden panel)
+function saveClientId() {
+  const cid = document.getElementById('client-id').value.trim();
+  if (!cid) { toast('⚠️ Entrez un Client ID'); return; }
+  localStorage.setItem('mailpro_clientid', cid);
+  toast('✅ Client ID sauvegardé !');
+  document.getElementById('admin-panel').style.display = 'none';
+}
+
+function toggleAdminPanel() {
+  const p = document.getElementById('admin-panel');
+  const saved = localStorage.getItem('mailpro_clientid') || '';
+  if (document.getElementById('client-id')) {
+    document.getElementById('client-id').value = saved;
+  }
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+function connectGraph() {
+  // Get Client ID — from localStorage (set by admin) or prompt
+  let clientId = localStorage.getItem('mailpro_clientid') || '';
+  
+  if (!clientId) {
+    // Show admin panel to enter Client ID
+    document.getElementById('admin-panel').style.display = 'block';
+    showAlert('auth-alert', 'info', 
+      '⚙️ Configuration requise : demandez à votre administrateur de configurer l\'application.');
+    return;
+  }
+
+  const tenantId = 'organizations'; // Microsoft 365 pro accounts
+  // Use nativeclient redirect which works for local files
+  const redirectUri = 'https://login.microsoftonline.com/common/oauth2/nativeclient';
+  const scope = 'Mail.Read User.Read';
+  
+  const authUrl = 'https://login.microsoftonline.com/' + tenantId + '/oauth2/v2.0/authorize'
+    + '?client_id=' + clientId
+    + '&response_type=token'
+    + '&redirect_uri=' + encodeURIComponent(redirectUri)
+    + '&scope=' + encodeURIComponent(scope)
+    + '&response_mode=fragment'
+    + '&prompt=select_account';
+
+  showAlert('auth-alert', 'info', '🔐 Ouverture de Microsoft...');
+  
+  // Open in popup window
+  const popup = window.open(authUrl, 'MicrosoftLogin',
+    'width=500,height=650,left=' + (screen.width/2-250) + ',top=' + (screen.height/2-325));
+  
+  // Listen for token from popup
+  const timer = setInterval(() => {
+    try {
+      const url = popup.location.href;
+      if (url.includes('access_token')) {
+        const hash = url.split('#')[1];
+        const params = new URLSearchParams(hash);
+        const token = params.get('access_token');
+        if (token) {
+          clearInterval(timer);
+          popup.close();
+          authToken = token;
+          localStorage.setItem('mailpro_token', token);
+          toast('✅ Connecté !');
+          fetchMails();
+        }
+      }
+      if (popup.closed && !authToken) {
+        clearInterval(timer);
+        showAlert('auth-alert', 'error', '❌ Connexion annulée.');
+      }
+    } catch(e) { /* cross-origin, keep waiting */ }
+  }, 500);
+}
+
+// OAuth handled via popup
+
+// ═══════════════════════════════════════════════
+// FETCH MAILS FROM GRAPH API
+// ═══════════════════════════════════════════════
+async function fetchMails() {
+  if (!authToken) return;
+  
+  setStatus('connected', 'Chargement...');
+  document.getElementById('welcome-screen').style.display = 'none';
+  document.getElementById('connect-screen').style.display = 'none';
+  
+  try {
+    const res = await fetch(
+      'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=100&$select=subject,from,bodyPreview,receivedDateTime,isRead,importance&$orderby=receivedDateTime desc',
+      { headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+    
+    if (res.status === 401) {
+      localStorage.removeItem('mailpro_token');
+      authToken = null;
+      setStatus('', 'Session expirée');
+      showConnect();
+      return;
+    }
+
+    if (!res.ok) throw new Error(`Erreur ${res.status}`);
+    
+    const data = await res.json();
+    const rawMails = data.value || [];
+    
+    allMails = rawMails.map(m => ({
+      sujet: m.subject || '(Sans objet)',
+      expediteur: m.from?.emailAddress?.address || '',
+      expediteur_nom: m.from?.emailAddress?.name || m.from?.emailAddress?.address || '',
+      corps: m.bodyPreview || '',
+      date: formatDate(m.receivedDateTime),
+      lu: m.isRead,
+      importance_ms: m.importance,
+      source: 'graph'
+    }));
+
+    processAndDisplay();
+    setStatus('connected', `Connecté — ${allMails.length} mails`);
+    document.getElementById('btn-disconnect').style.display = 'flex';
+    document.getElementById('btn-connect').style.display = 'none';
+    document.getElementById('btn-refresh').style.display = 'flex';
+    document.getElementById('btn-export').style.display = 'flex';
+    document.getElementById('topbar-status').textContent = `${allMails.length} mails analysés`;
+
+  } catch(e) {
+    setStatus('error', 'Erreur de connexion');
+    toast('❌ Erreur : ' + e.message);
+    document.getElementById('welcome-screen').style.display = 'flex';
+  }
+}
+
+async function refreshMails() {
+  toast('🔄 Actualisation...');
+  await fetchMails();
+  toast('✅ Mails actualisés !');
+}
+
+function disconnect() {
+  authToken = null;
+  localStorage.removeItem('mailpro_token');
+  allMails = [];
+  filteredMails = [];
+  setStatus('', 'Non connecté');
+  document.getElementById('btn-disconnect').style.display = 'none';
+  document.getElementById('btn-connect').style.display = 'flex';
+  document.getElementById('btn-refresh').style.display = 'none';
+  document.getElementById('btn-export').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('welcome-screen').style.display = 'flex';
+  document.getElementById('topbar-status').textContent = '';
+}
+
+// ═══════════════════════════════════════════════
+// ANALYSE
+// ═══════════════════════════════════════════════
+const MOTS_URGENTS = ['urgent','urgence','asap','bloquant','bloqué','critique','deadline','échéance',
+  'aujourd\'hui','immédiat','incident','alerte','au plus vite','dès que possible'];
+const MOTS_IMPORTANTS = ['important','réunion','meeting','client','contrat','devis','facture',
+  'projet','validation','valider','signature','décision','manager','directeur','livraison'];
+const MOTS_SPAM = ['newsletter','promotion','offre spéciale','désabonner','unsubscribe',
+  'no-reply','noreply','notification automatique','publicité','soldes'];
+
+function analyser(mail) {
+  const vips = (document.getElementById('vip-list').value || '').split('\n').filter(Boolean);
+  const custom = (document.getElementById('custom-words').value || '').split('\n').map(s=>s.toLowerCase()).filter(Boolean);
+  
+  const texte = `${mail.sujet} ${mail.corps}`.toLowerCase();
+  let score = 0;
+  const raisons = [];
+
+  // VIP
+  if (vips.some(v => v && mail.expediteur.toLowerCase().includes(v.toLowerCase()))) {
+    score += 40; raisons.push('📌 Expéditeur VIP');
+  }
+  // Importance Microsoft
+  if (mail.importance_ms === 'high') { score += 30; raisons.push('⚡ Marqué urgent par Outlook'); }
+
+  // Mots urgents
+  const urgFound = [...MOTS_URGENTS, ...custom].filter(m => texte.includes(m));
+  if (urgFound.length) { score += 35; raisons.push(`🚨 ${urgFound.slice(0,2).join(', ')}`); }
+
+  // Mots importants
+  const impFound = MOTS_IMPORTANTS.filter(m => texte.includes(m));
+  if (impFound.length) { score += 15; raisons.push(`⚡ ${impFound.slice(0,2).join(', ')}`); }
+
+  // Spam/auto
+  const spamFound = MOTS_SPAM.filter(m => texte.includes(m));
+  if (spamFound.length || mail.expediteur.toLowerCase().includes('noreply') || mail.expediteur.toLowerCase().includes('no-reply')) {
+    score -= 40; raisons.push('🤖 Mail automatique');
+  }
+
+  // Non lu = léger boost
+  if (!mail.lu) score += 5;
+
+  const s = Math.max(0, Math.min(100, score + 45));
+  let priorite, pillClass;
+  if (s >= 60)      { priorite = '🔴 URGENT';    pillClass = 'pill-urgent'; }
+  else if (s >= 45) { priorite = '🟠 IMPORTANT'; pillClass = 'pill-important'; }
+  else if (s >= 30) { priorite = '🟡 NORMAL';    pillClass = 'pill-normal'; }
+  else              { priorite = '🟢 À TRAITER';  pillClass = 'pill-ok'; }
+
+  return { priorite, pillClass, raisons: raisons.length ? raisons : ['📧 Analyse standard'] };
+}
+
+function suggererReponse(mail, priorite) {
+  const t = `${mail.sujet} ${mail.corps}`.toLowerCase();
+  const nom = mail.expediteur_nom.split(' ')[0] || 'Madame/Monsieur';
+
+  if (t.includes('réunion') || t.includes('meeting'))
+    return `Bonjour ${nom},\n\nJe confirme ma disponibilité pour cette réunion.\n\nCordialement`;
+  if (t.includes('devis') || t.includes('facture') || t.includes('contrat'))
+    return `Bonjour ${nom},\n\nBien reçu, je reviens vers vous rapidement concernant ce point.\n\nCordialement`;
+  if (priorite.includes('URGENT'))
+    return `Bonjour ${nom},\n\nBien reçu en priorité, je traite votre demande immédiatement.\n\nCordialement`;
+  return `Bonjour ${nom},\n\nMerci pour votre message. Je vous réponds dès que possible.\n\nCordialement`;
+}
+
+// ═══════════════════════════════════════════════
+// DISPLAY
+// ═══════════════════════════════════════════════
+function processAndDisplay() {
+  allMails = allMails.map(m => {
+    const analyse = analyser(m);
+    return { ...m, ...analyse, suggestion: suggererReponse(m, analyse.priorite) };
+  });
+  filteredMails = [...allMails];
+  renderDashboard();
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('welcome-screen').style.display = 'none';
+}
+
+function reanalyze() {
+  allMails = allMails.map(m => {
+    const analyse = analyser(m);
+    return { ...m, ...analyse, suggestion: suggererReponse(m, analyse.priorite) };
+  });
+  applyFilters();
+  toast('✅ Réanalyse terminée !');
+}
+
+function renderDashboard() {
+  updateKPIs();
+  renderCharts();
+  renderMails(filteredMails);
+}
+
+function updateKPIs() {
+  const t = filteredMails.length;
+  const urg = filteredMails.filter(m => m.priorite === '🔴 URGENT').length;
+  const imp = filteredMails.filter(m => m.priorite === '🟠 IMPORTANT').length;
+  const unread = filteredMails.filter(m => !m.lu).length;
+  document.getElementById('kpi-total').textContent = t;
+  document.getElementById('kpi-urgent').textContent = urg;
+  document.getElementById('kpi-important').textContent = imp;
+  document.getElementById('kpi-unread').textContent = unread;
+}
+
+function renderCharts() {
+  const dark = !document.body.classList.contains('light');
+  const tc = dark ? '#f0f4ff' : '#0f1629';
+  const gc = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+
+  const counts = {
+    urgent: filteredMails.filter(m=>m.priorite==='🔴 URGENT').length,
+    important: filteredMails.filter(m=>m.priorite==='🟠 IMPORTANT').length,
+    normal: filteredMails.filter(m=>m.priorite==='🟡 NORMAL').length,
+    ok: filteredMails.filter(m=>m.priorite==='🟢 À TRAITER').length
+  };
+
+  if (charts.pie) charts.pie.destroy();
+  charts.pie = new Chart(document.getElementById('chart-pie'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Urgent','Important','Normal','À traiter'],
+      datasets: [{ data: [counts.urgent, counts.important, counts.normal, counts.ok],
+        backgroundColor: ['#ff4d6d','#ff8c42','#ffd166','#06d6a0'], borderWidth: 0 }]
+    },
+    options: { responsive:true, cutout:'65%',
+      plugins: { legend: { position:'bottom', labels:{ color:tc, padding:12, font:{family:'DM Sans'} } } }
+    }
+  });
+
+  // Bar: top senders
+  const senderMap = {};
+  filteredMails.forEach(m => {
+    const k = m.expediteur_nom || m.expediteur;
+    senderMap[k] = (senderMap[k]||0) + 1;
+  });
+  const top = Object.entries(senderMap).sort((a,b)=>b[1]-a[1]).slice(0,7);
+
+  if (charts.bar) charts.bar.destroy();
+  charts.bar = new Chart(document.getElementById('chart-bar'), {
+    type: 'bar',
+    data: {
+      labels: top.map(d=>d[0]),
+      datasets: [{ data: top.map(d=>d[1]), backgroundColor:'#4f8dff', borderRadius:6 }]
+    },
+    options: { indexAxis:'y', responsive:true,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ticks:{color:tc,font:{family:'DM Sans'}},grid:{color:gc}},
+        y:{ticks:{color:tc,font:{family:'DM Sans',size:11}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+function renderMails(mails) {
+  const list = document.getElementById('mail-list');
+  document.getElementById('mail-count').textContent = `— ${mails.length} mail(s)`;
+
+  if (!mails.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div>Aucun mail ne correspond aux filtres</div></div>';
+    return;
+  }
+
+  list.innerHTML = mails.map((m, i) => `
+    <div class="mail-card ${!m.lu ? 'unread' : ''}" onclick="toggleMail(${i})">
+      <div class="mail-header">
+        <span class="priority-pill ${m.pillClass}">${m.priorite}</span>
+        <div class="mail-info">
+          <div class="mail-subject">${escHtml(m.sujet)}</div>
+          <div class="mail-meta">${escHtml(m.expediteur_nom)} · ${escHtml(m.expediteur)}</div>
+        </div>
+        <div class="mail-date">${m.date}</div>
+      </div>
+      <div class="mail-body" id="body-${i}">
+        <div class="mail-preview">${escHtml(m.corps)}</div>
+        <div class="reasons-row">
+          ${m.raisons.map(r=>`<span class="reason-tag">${r}</span>`).join('')}
+        </div>
+        <div class="suggestion-box">
+          <div class="suggestion-label">💬 Suggestion de réponse</div>
+          <textarea class="suggestion-text" rows="4" onclick="event.stopPropagation()">${escHtml(m.suggestion)}</textarea>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleMail(i) {
+  const body = document.getElementById(`body-${i}`);
+  body.classList.toggle('open');
+}
+
+// ═══════════════════════════════════════════════
+// FILTERS
+// ═══════════════════════════════════════════════
+function applyFilters() {
+  const search = document.getElementById('f-search').value.toLowerCase();
+  const prio = document.getElementById('f-prio').value;
+  const lu = document.getElementById('f-lu').value;
+
+  filteredMails = allMails.filter(m => {
+    const matchSearch = !search || m.sujet.toLowerCase().includes(search) || m.expediteur_nom.toLowerCase().includes(search);
+    const matchPrio = !prio || m.priorite === prio;
+    const matchLu = !lu || (lu === 'unread' ? !m.lu : m.lu);
+    return matchSearch && matchPrio && matchLu;
+  });
+
+  updateKPIs();
+  renderCharts();
+  renderMails(filteredMails);
+}
+
+function filterSidebar(val) {
+  document.getElementById('f-prio').value = val === 'unread' ? '' : val;
+  document.getElementById('f-lu').value = val === 'unread' ? 'unread' : '';
+  applyFilters();
+}
+
+function resetFilters() {
+  document.getElementById('f-search').value = '';
+  document.getElementById('f-prio').value = '';
+  document.getElementById('f-lu').value = '';
+  applyFilters();
+}
+
+// ═══════════════════════════════════════════════
+// DEMO DATA
+// ═══════════════════════════════════════════════
+function loadDemo() {
+  const now = new Date();
+  allMails = [
+    { sujet:'URGENT — Serveur de production hors ligne', expediteur:'infra@client.com', expediteur_nom:'Équipe Infra', corps:'Le serveur principal est bloqué depuis 1h. Incident critique, intervention immédiate requise.', date:formatDate(new Date(now-3600000).toISOString()), lu:false, importance_ms:'high', source:'demo' },
+    { sujet:'Réunion de validation projet demain 14h', expediteur:'directeur@ocsi.fr', expediteur_nom:'Direction OCSI', corps:'Bonjour, rendez-vous demain pour valider le projet. Merci de confirmer votre présence.', date:formatDate(new Date(now-7200000).toISOString()), lu:false, importance_ms:'normal', source:'demo' },
+    { sujet:'Devis 2024-089 en attente de signature', expediteur:'commercial@client.fr', expediteur_nom:'Commercial Client', corps:'Le devis 2024-089 attend votre signature. Deadline vendredi impératif.', date:formatDate(new Date(now-18000000).toISOString()), lu:true, importance_ms:'normal', source:'demo' },
+    { sujet:'Newsletter du mois — Offres spéciales', expediteur:'no-reply@newsletter.com', expediteur_nom:'Newsletter Auto', corps:'Découvrez nos offres spéciales ! Promotion exceptionnelle ce mois-ci. Désabonner.', date:formatDate(new Date(now-86400000).toISOString()), lu:true, importance_ms:'low', source:'demo' },
+    { sujet:'Point hebdomadaire — Avancement projets', expediteur:'manager@ocsi.fr', expediteur_nom:'Manager', corps:'Bonjour équipe, voici le point de la semaine sur l\'avancement de nos différents projets.', date:formatDate(new Date(now-90000000).toISOString()), lu:false, importance_ms:'normal', source:'demo' },
+    { sujet:'Facture F-2024-456 impayée — Relance', expediteur:'compta@fournisseur.com', expediteur_nom:'Comptabilité', corps:'Rappel : votre facture est en attente de règlement depuis 30 jours. Merci de traiter rapidement.', date:formatDate(new Date(now-172800000).toISOString()), lu:false, importance_ms:'normal', source:'demo' },
+    { sujet:'Alerte sécurité — Connexion inhabituelle', expediteur:'security@systeme.com', expediteur_nom:'Sécurité IT', corps:'Un accès suspect a été détecté sur votre compte. Vérification urgente requise immédiatement.', date:formatDate(new Date(now-3600000/2).toISOString()), lu:false, importance_ms:'high', source:'demo' },
+    { sujet:'Invitation conférence Tech Paris 2026', expediteur:'events@tech-conf.fr', expediteur_nom:'Tech Conference', corps:'Vous êtes invité à notre conférence annuelle sur la transformation digitale. Inscription gratuite.', date:formatDate(new Date(now-259200000).toISOString()), lu:true, importance_ms:'low', source:'demo' },
+  ];
+  processAndDisplay();
+  setStatus('connected', 'Mode démo — 8 mails');
+  document.getElementById('connect-screen').style.display = 'none';
+  document.getElementById('btn-refresh').style.display = 'none';
+  document.getElementById('btn-export').style.display = 'flex';
+  document.getElementById('topbar-status').textContent = 'Mode démonstration';
+  toast('🎮 Mode démo chargé !');
+}
+
+// ═══════════════════════════════════════════════
+// EXPORT CSV
+// ═══════════════════════════════════════════════
+function exportCSV() {
+  const headers = ['Sujet','Expéditeur','Email','Date','Priorité','Lu','Aperçu'];
+  const rows = filteredMails.map(m => [
+    `"${(m.sujet||'').replace(/"/g,'""')}"`,
+    `"${(m.expediteur_nom||'').replace(/"/g,'""')}"`,
+    `"${(m.expediteur||'').replace(/"/g,'""')}"`,
+    `"${m.date}"`,
+    `"${m.priorite}"`,
+    m.lu ? 'Oui' : 'Non',
+    `"${(m.corps||'').slice(0,100).replace(/"/g,'""')}"`
+  ].join(';'));
+  
+  const blob = new Blob(['\ufeff' + [headers.join(';'), ...rows].join('\n')], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mails_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('📥 Export téléchargé !');
+}
+
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+function setStatus(type, text) {
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot' + (type ? ' ' + type : '');
+  document.getElementById('status-text').textContent = text;
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' +
+           d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+  } catch { return iso; }
+}
+
+function escHtml(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showAlert(id, type, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = `alert ${type}`;
+  el.textContent = msg;
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._to);
+  t._to = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
