@@ -568,13 +568,22 @@ let charts = {};
 // ═══════════════════════════════════════════════
 window.onload = () => {
   if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
-  // Client ID pre-configured — no setup needed for users
-  localStorage.setItem('mailpro_clientid', '3b031c53-24b1-4651-9ae6-7959068e2d24');
   // Check saved token
+  // Pre-configured by admin — users just click "Se connecter"
+  const MAILPRO_CLIENT_ID = '3b031c53-24b1-4651-9ae6-7959068e2d24';
+  const MAILPRO_TENANT_ID = 'fbeb460e-6839-42a2-87c8-8544ecbd9a19';
+  localStorage.setItem('mailpro_clientid', MAILPRO_CLIENT_ID);
+
+  // Load saved token if not expired
   const saved = localStorage.getItem('mailpro_token');
-  if (saved) {
+  const expiry = parseInt(localStorage.getItem('mailpro_token_expiry') || '0');
+  if (saved && Date.now() < expiry) {
     authToken = saved;
     fetchMails();
+  } else if (saved) {
+    // Token expired - clear it
+    localStorage.removeItem('mailpro_token');
+    localStorage.removeItem('mailpro_token_expiry');
   }
 };
 
@@ -629,20 +638,11 @@ function toggleAdminPanel() {
 }
 
 function connectGraph() {
-  // Get Client ID — from localStorage (set by admin) or prompt
-  let clientId = localStorage.getItem('mailpro_clientid') || '';
-  
-  if (!clientId) {
-    // Show admin panel to enter Client ID
-    document.getElementById('admin-panel').style.display = 'block';
-    showAlert('auth-alert', 'info', 
-      '⚙️ Configuration requise : demandez à votre administrateur de configurer l\'application.');
-    return;
-  }
-
-  const tenantId = 'organizations'; // Microsoft 365 pro accounts
-  // Use nativeclient redirect which works for local files
-  const redirectUri = 'https://login.microsoftonline.com/common/oauth2/nativeclient';
+  // Client ID pre-configured — no setup needed for users
+  const clientId = '3b031c53-24b1-4651-9ae6-7959068e2d24';
+  const tenantId = 'fbeb460e-6839-42a2-87c8-8544ecbd9a19';
+  // Redirect back to this HTML file after Microsoft login
+  const redirectUri = "https://ocsi-mailpro.github.io/mailpro/";
   const scope = 'Mail.Read User.Read';
   
   const authUrl = 'https://login.microsoftonline.com/' + tenantId + '/oauth2/v2.0/authorize'
@@ -651,40 +651,32 @@ function connectGraph() {
     + '&redirect_uri=' + encodeURIComponent(redirectUri)
     + '&scope=' + encodeURIComponent(scope)
     + '&response_mode=fragment'
-    + '&prompt=select_account';
+    + '&prompt=select_account'; // Force account picker like Outlook.com
 
-  showAlert('auth-alert', 'info', '🔐 Ouverture de Microsoft...');
+  showAlert('auth-alert', 'info', '🔐 Ouverture de la fenêtre Microsoft...');
   
-  // Open in popup window
-  const popup = window.open(authUrl, 'MicrosoftLogin',
-    'width=500,height=650,left=' + (screen.width/2-250) + ',top=' + (screen.height/2-325));
-  
-  // Listen for token from popup
-  const timer = setInterval(() => {
-    try {
-      const url = popup.location.href;
-      if (url.includes('access_token')) {
-        const hash = url.split('#')[1];
-        const params = new URLSearchParams(hash);
-        const token = params.get('access_token');
-        if (token) {
-          clearInterval(timer);
-          popup.close();
-          authToken = token;
-          localStorage.setItem('mailpro_token', token);
-          toast('✅ Connecté !');
-          fetchMails();
-        }
-      }
-      if (popup.closed && !authToken) {
-        clearInterval(timer);
-        showAlert('auth-alert', 'error', '❌ Connexion annulée.');
-      }
-    } catch(e) { /* cross-origin, keep waiting */ }
-  }, 500);
+  setTimeout(() => { window.location.href = authUrl; }, 600);
 }
 
-// OAuth handled via popup
+// Handle OAuth redirect — works with file:// protocol
+(function handleOAuthRedirect() {
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const token = params.get('access_token');
+    if (token) {
+      authToken = token;
+      // Store token with expiry (1 hour)
+      const expiry = Date.now() + 3600 * 1000;
+      localStorage.setItem('mailpro_token', token);
+      localStorage.setItem('mailpro_token_expiry', expiry);
+      // Clean URL hash
+      window.history.replaceState({}, '', window.location.pathname);
+      toast('✅ Connexion réussie !');
+      fetchMails();
+    }
+  }
+})();
 
 // ═══════════════════════════════════════════════
 // FETCH MAILS FROM GRAPH API
