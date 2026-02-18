@@ -1012,15 +1012,32 @@ function renderMails(mails) {
     return 0;
   });
 
-  list.innerHTML = sortedMails.map((m, i) => {
-    const originalIndex = mails.indexOf(m);
-    return `
-    <div class="mail-card ${!m.lu ? 'unread' : ''}" data-idx="${originalIndex}">
-      <div class="mail-header" onclick="toggleMail(${originalIndex})">
+  list.innerHTML = mails.map((m, i) => `
+    <div class="mail-card ${!m.lu ? 'unread' : ''}" data-mail-idx="${i}">
+      <div class="mail-header">
         <span class="priority-pill ${m.pillClass}">${m.priorite}</span>
-        <div class="mail-info">
+        <div class="mail-info" onclick="toggleMail(${i})" style="cursor:pointer;flex:1;">
           <div class="mail-subject">${escHtml(m.sujet)}</div>
-          <div class="mail-meta">${escHtml(m.expediteur_nom)} · ${escHtml(m
+          <div class="mail-meta">${escHtml(m.expediteur_nom)} · ${escHtml(m.expediteur)}</div>
+        </div>
+        <button class="btn-mark-read" onclick="toggleReadStatus(event, ${i})" title="${m.lu ? 'Marquer non lu' : 'Marquer lu'}">
+          ${m.lu ? '📭' : '📩'}
+        </button>
+        <div class="mail-date" style="margin-left:10px;">${m.date}</div>
+      </div>
+      <div class="mail-body" id="body-${i}">
+        <div class="mail-preview">${escHtml(m.corps)}</div>
+        <div class="reasons-row">
+          ${m.raisons.map(r=>`<span class="reason-tag">${r}</span>`).join('')}
+        </div>
+        <div class="suggestion-box">
+          <div class="suggestion-label">💬 Suggestion de réponse</div>
+          <textarea class="suggestion-text" rows="4" onclick="event.stopPropagation()">${escHtml(m.suggestion)}</textarea>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
 
 function toggleMail(i) {
   const body = document.getElementById(`body-${i}`);
