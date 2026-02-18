@@ -312,6 +312,24 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
+
+/* TAG BUBBLES */
+.tag-bubble {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 20px;
+  background: var(--surface2); border: 1px solid var(--border);
+  font-size: 0.82em; margin: 4px 4px 4px 0;
+  transition: all 0.2s;
+}
+.tag-bubble:hover { background: var(--surface); border-color: var(--accent); }
+.tag-bubble-remove {
+  background: none; border: none; color: var(--text2);
+  cursor: pointer; font-size: 1.1em; padding: 0; margin: 0;
+  width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; transition: all 0.2s;
+}
+.tag-bubble-remove:hover { background: var(--urgent); color: white; }
+.tags-container { display: flex; flex-wrap: wrap; margin-top: 8px; min-height: 32px; }
 /* MARK READ BUTTON */
 .btn-mark-read {
   background: transparent; border: 1px solid var(--border);
@@ -372,14 +390,16 @@ body {
   <div class="sidebar-section">
     <div class="sidebar-label">Paramètres d'analyse</div>
     <div class="form-group">
-      <div class="input-label">📌 Expéditeurs VIP (1 par ligne)</div>
-      <textarea class="textarea" id="vip-list" placeholder="nom@entreprise.com&#10;directeur@ocsi.fr" style="min-height:60px;"></textarea>
+      <div class="input-label">📌 Expéditeurs VIP</div>
+      <input type="text" class="input" id="vip-input" placeholder="Ajouter un email VIP..." onkeypress="if(event.key==='Enter'){addVIP();event.preventDefault();}">
+      <div class="tags-container" id="vip-tags"></div>
     </div>
     <div class="form-group">
-      <div class="input-label">🚨 Mots urgents (1 par ligne)</div>
-      <textarea class="textarea" id="custom-words" placeholder="bloqué&#10;annulé" style="min-height:50px;"></textarea>
+      <div class="input-label">🚨 Mots urgents</div>
+      <input type="text" class="input" id="words-input" placeholder="Ajouter un mot urgent..." onkeypress="if(event.key==='Enter'){addWord();event.preventDefault();}">
+      <div class="tags-container" id="words-tags"></div>
     </div>
-    <button class="btn btn-outline btn-sm" onclick="reanalyze()" style="margin-top:4px;">🔄 Réanalyser</button>
+
   </div>
 
   <!-- Demo -->
@@ -500,13 +520,7 @@ body {
       </div>
     </div>
 
-    <!-- CHARTS -->
-    <div style="max-width:500px;margin:0 auto 32px;">
-      <div class="chart-card">
-        <div class="chart-label">Répartition par priorité</div>
-        <canvas id="chart-pie" height="200"></canvas>
-      </div>
-    </div>
+
 
     <!-- FILTERS -->
     <div class="filter-bar">
@@ -585,6 +599,10 @@ let charts = {};
 // ═══════════════════════════════════════════════
 window.onload = () => {
   if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+  
+  // Load VIP and custom words tags
+  loadTags();
+  
   // Check saved token
   // Pre-configured by admin — users just click "Se connecter"
   const MAILPRO_CLIENT_ID = '3b031c53-24b1-4651-9ae6-7959068e2d24';
@@ -861,6 +879,92 @@ function disconnect() {
   document.getElementById('topbar-status').textContent = '';
 }
 
+
+// ═══════════════════════════════════════════════
+// TAG MANAGEMENT FOR VIP & WORDS
+// ═══════════════════════════════════════════════
+let vipList = [];
+let customWords = [];
+
+// Load tags from localStorage on init
+function loadTags() {
+  vipList = JSON.parse(localStorage.getItem('mailpro_vips') || '[]');
+  customWords = JSON.parse(localStorage.getItem('mailpro_words') || '[]');
+  renderVIPTags();
+  renderWordsTags();
+}
+
+function saveTags() {
+  localStorage.setItem('mailpro_vips', JSON.stringify(vipList));
+  localStorage.setItem('mailpro_words', JSON.stringify(customWords));
+}
+
+function renderVIPTags() {
+  const container = document.getElementById('vip-tags');
+  if (!container) return;
+  container.innerHTML = vipList.map((vip, i) => `
+    <div class="tag-bubble">
+      <span>📌 ${escHtml(vip)}</span>
+      <button class="tag-bubble-remove" onclick="removeVIP(${i})" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderWordsTags() {
+  const container = document.getElementById('words-tags');
+  if (!container) return;
+  container.innerHTML = customWords.map((word, i) => `
+    <div class="tag-bubble">
+      <span>🚨 ${escHtml(word)}</span>
+      <button class="tag-bubble-remove" onclick="removeWord(${i})" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+function addVIP() {
+  const input = document.getElementById('vip-input');
+  const value = input.value.trim();
+  if (!value) return;
+  if (vipList.includes(value)) {
+    toast('⚠️ Email déjà dans la liste');
+    return;
+  }
+  vipList.push(value);
+  input.value = '';
+  saveTags();
+  renderVIPTags();
+  if (allMails.length) reanalyze();
+}
+
+function removeVIP(index) {
+  vipList.splice(index, 1);
+  saveTags();
+  renderVIPTags();
+  if (allMails.length) reanalyze();
+}
+
+function addWord() {
+  const input = document.getElementById('words-input');
+  const value = input.value.trim().toLowerCase();
+  if (!value) return;
+  if (customWords.includes(value)) {
+    toast('⚠️ Mot déjà dans la liste');
+    return;
+  }
+  customWords.push(value);
+  input.value = '';
+  saveTags();
+  renderWordsTags();
+  if (allMails.length) reanalyze();
+}
+
+function removeWord(index) {
+  customWords.splice(index, 1);
+  saveTags();
+  renderWordsTags();
+  if (allMails.length) reanalyze();
+}
+
 // ═══════════════════════════════════════════════
 // ANALYSE
 // ═══════════════════════════════════════════════
@@ -872,8 +976,8 @@ const MOTS_SPAM = ['newsletter','promotion','offre spéciale','désabonner','uns
   'no-reply','noreply','notification automatique','publicité','soldes'];
 
 function analyser(mail) {
-  const vips = (document.getElementById('vip-list').value || '').split('\n').filter(Boolean);
-  const custom = (document.getElementById('custom-words').value || '').split('\n').map(s=>s.toLowerCase()).filter(Boolean);
+  const vips = vipList;
+  const custom = customWords;
   
   const texte = `${mail.sujet} ${mail.corps}`.toLowerCase();
   let score = 0;
@@ -951,7 +1055,6 @@ function reanalyze() {
 
 function renderDashboard() {
   updateKPIs();
-  renderCharts();
   renderMails(filteredMails);
 }
 
@@ -966,31 +1069,6 @@ function updateKPIs() {
   document.getElementById('kpi-unread').textContent = unread;
 }
 
-function renderCharts() {
-  const dark = !document.body.classList.contains('light');
-  const tc = dark ? '#f0f4ff' : '#0f1629';
-  const gc = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-
-  const counts = {
-    urgent: filteredMails.filter(m=>m.priorite==='🔴 URGENT').length,
-    important: filteredMails.filter(m=>m.priorite==='🟠 IMPORTANT').length,
-    normal: filteredMails.filter(m=>m.priorite==='🟡 NORMAL').length,
-    ok: filteredMails.filter(m=>m.priorite==='🟢 À TRAITER').length
-  };
-
-  if (charts.pie) charts.pie.destroy();
-  charts.pie = new Chart(document.getElementById('chart-pie'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Urgent','Important','Normal','À traiter'],
-      datasets: [{ data: [counts.urgent, counts.important, counts.normal, counts.ok],
-        backgroundColor: ['#ff4d6d','#ff8c42','#ffd166','#06d6a0'], borderWidth: 0 }]
-    },
-    options: { responsive:true, cutout:'65%',
-      plugins: { legend: { position:'bottom', labels:{ color:tc, padding:12, font:{family:'DM Sans'} } } }
-    }
-  });
-}
 
 function renderMails(mails) {
   const list = document.getElementById('mail-list');
@@ -1089,7 +1167,6 @@ async function toggleReadStatus(event, idx) {
   }
   
   updateKPIs();
-  renderCharts();
   toast(newStatus ? '✅ Marqué comme lu' : '📩 Marqué comme non lu');
 }
 // ═══════════════════════════════════════════════
@@ -1132,7 +1209,6 @@ function applyFilters() {
   }
 
   updateKPIs();
-  renderCharts();
   renderMails(filteredMails);
 }
 
