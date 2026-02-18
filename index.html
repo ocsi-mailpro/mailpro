@@ -585,6 +585,11 @@ window.onload = () => {
     localStorage.removeItem('mailpro_token');
     localStorage.removeItem('mailpro_token_expiry');
   }
+  
+  // Check for auth code on page load
+  if (window.location.search.includes('code=')) {
+    handleAuthCode();
+  }
 };
 
 // ═══════════════════════════════════════════════
@@ -638,25 +643,109 @@ function toggleAdminPanel() {
 }
 
 function connectGraph() {
-  // Client ID pre-configured — no setup needed for users
+  // Client ID pre-configured
   const clientId = '3b031c53-24b1-4651-9ae6-7959068e2d24';
   const tenantId = 'fbeb460e-6839-42a2-87c8-8544ecbd9a19';
-  // Redirect back to this HTML file after Microsoft login
   const redirectUri = "https://ocsi-mailpro.github.io/mailpro/";
-  const scope = 'Mail.Read User.Read';
+  const scope = 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read';
   
-  const authUrl = 'https://login.microsoftonline.com/' + tenantId + '/oauth2/v2.0/authorize'
-    + '?client_id=' + clientId
-    + '&response_type=token'
-    + '&redirect_uri=' + encodeURIComponent(redirectUri)
-    + '&scope=' + encodeURIComponent(scope)
-    + '&response_mode=fragment'
-    + '&prompt=select_account'; // Force account picker like Outlook.com
+  // Generate PKCE code verifier and challenge
+  const codeVerifier = generateRandomString(128);
+  
+  // Store verifier for later
+  sessionStorage.setItem('pkce_verifier', codeVerifier);
+  
+  // Generate challenge synchronously using a simpler method
+  crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier))
+    .then(buffer => {
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      bytes.forEach(b => binary += String.fromCharCode(b));
+      const codeChallenge = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      
+      const authUrl = 'https://login.microsoftonline.com/' + tenantId + '/oauth2/v2.0/authorize'
+        + '?client_id=' + clientId
+        + '&response_type=code'
+        + '&redirect_uri=' + encodeURIComponent(redirectUri)
+        + '&response_mode=query'
+        + '&scope=' + encodeURIComponent(scope)
+        + '&code_challenge=' + codeChallenge
+        + '&code_challenge_method=S256'
+        + '&prompt=select_account';
 
-  showAlert('auth-alert', 'info', '🔐 Ouverture de la fenêtre Microsoft...');
-  
-  setTimeout(() => { window.location.href = authUrl; }, 600);
+      showAlert('auth-alert', 'info', '🔐 Redirection vers Microsoft...');
+      setTimeout(() => { window.location.href = authUrl; }, 600);
+    });
 }
+
+// PKCE helper functions
+function generateRandomString(length) {
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let text = '';
+  for (let i = 0; i < length; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}
+
+// Handle authorization code callback
+async function handleAuthCode() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+  
+  if (!code) return;
+  
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  if (!verifier) {
+    toast('❌ Session expirée');
+    return;
+  }
+  
+  // Exchange code for token
+  const clientId = '3b031c53-24b1-4651-9ae6-7959068e2d24';
+  const tenantId = 'fbeb460e-6839-42a2-87c8-8544ecbd9a19';
+  const redirectUri = 'https://ocsi-mailpro.github.io/mailpro/';
+  
+  try {
+    const tokenResp = await fetch('https://login.microsoftonline.com/' + tenantId + '/oauth2/v2.0/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read',
+        code: code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+        code_verifier: verifier
+      })
+    });
+    
+    if (!tokenResp.ok) {
+      const err = await tokenResp.json();
+      throw new Error(err.error_description || 'Token exchange failed');
+    }
+    
+    const tokenData = await tokenResp.json();
+    authToken = tokenData.access_token;
+    
+    // Save token
+    const expiry = Date.now() + (tokenData.expires_in * 1000);
+    localStorage.setItem('mailpro_token', authToken);
+    localStorage.setItem('mailpro_token_expiry', expiry);
+    
+    // Clean URL and session
+    sessionStorage.removeItem('pkce_verifier');
+    window.history.replaceState({}, '', window.location.pathname);
+    
+    toast('✅ Connexion réussie !');
+    fetchMails();
+    
+  } catch(e) {
+    console.error('Token error:', e);
+    toast('❌ Erreur de connexion : ' + e.message);
+  }
+}
+
 
 // Handle OAuth redirect — works with file:// protocol
 (function handleOAuthRedirect() {
