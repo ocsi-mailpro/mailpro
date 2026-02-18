@@ -1039,7 +1039,8 @@ function processAndDisplay() {
     return { ...m, ...analyse, suggestion: suggererReponse(m, analyse.priorite) };
   });
   filteredMails = [...allMails];
-  renderDashboard();
+  // Apply default sorting (most interesting)
+  applyFilters();
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('welcome-screen').style.display = 'none';
 }
