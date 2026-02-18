@@ -489,14 +489,10 @@ body {
     </div>
 
     <!-- CHARTS -->
-    <div class="charts-grid">
+    <div style="max-width:500px;margin:0 auto 32px;">
       <div class="chart-card">
         <div class="chart-label">Répartition par priorité</div>
         <canvas id="chart-pie" height="200"></canvas>
-      </div>
-      <div class="chart-card">
-        <div class="chart-label">Top expéditeurs</div>
-        <canvas id="chart-bar" height="200"></canvas>
       </div>
     </div>
 
@@ -970,30 +966,6 @@ function renderCharts() {
     },
     options: { responsive:true, cutout:'65%',
       plugins: { legend: { position:'bottom', labels:{ color:tc, padding:12, font:{family:'DM Sans'} } } }
-    }
-  });
-
-  // Bar: top senders
-  const senderMap = {};
-  filteredMails.forEach(m => {
-    const k = m.expediteur_nom || m.expediteur;
-    senderMap[k] = (senderMap[k]||0) + 1;
-  });
-  const top = Object.entries(senderMap).sort((a,b)=>b[1]-a[1]).slice(0,7);
-
-  if (charts.bar) charts.bar.destroy();
-  charts.bar = new Chart(document.getElementById('chart-bar'), {
-    type: 'bar',
-    data: {
-      labels: top.map(d=>d[0]),
-      datasets: [{ data: top.map(d=>d[1]), backgroundColor:'#4f8dff', borderRadius:6 }]
-    },
-    options: { indexAxis:'y', responsive:true,
-      plugins:{ legend:{display:false} },
-      scales:{
-        x:{ticks:{color:tc,font:{family:'DM Sans'}},grid:{color:gc}},
-        y:{ticks:{color:tc,font:{family:'DM Sans',size:11}},grid:{display:false}}
-      }
     }
   });
 }
