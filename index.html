@@ -266,6 +266,7 @@ body {
   border-radius: 14px; padding: 18px 22px;
   display: flex; gap: 14px; align-items: flex-end;
   margin-bottom: 24px; flex-wrap: wrap;
+  max-width: 100%;
 }
 .filter-group { flex: 1; min-width: 160px; }
 
@@ -428,6 +429,33 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
 
+
+/* FILTER COUNT BADGES */
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: 0.75em;
+  font-weight: 700;
+  margin-left: 8px;
+  border: 1px solid var(--border);
+}
+.period-filter.active .filter-count {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.period-filter.active {
+  background: rgba(88, 166, 255, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 /* TAG BUBBLES */
 .tag-bubble {
   display: inline-flex; align-items: center; gap: 6px;
@@ -457,12 +485,74 @@ body {
   transform: scale(1.1);
 }
 
+/* RESPONSIVE DESIGN */
+@media (max-width: 1400px) {
+  .sidebar { width: 280px; min-width: 280px; }
+  .main { margin-left: 280px; }
+  .page { padding: 24px; }
+  .kpi-grid { gap: 12px; }
+}
+
+@media (max-width: 1200px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .kpi-card { padding: 20px; }
+  .kpi-value { font-size: 2.4em; }
+}
+
 @media (max-width: 900px) {
-  .sidebar { width: 100%; height: auto; position: relative; }
+  .sidebar { 
+    width: 100%; 
+    height: auto; 
+    position: relative;
+    box-shadow: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
   .main { margin-left: 0; }
-  .kpi-grid { grid-template-columns: 1fr 1fr; }
-  .charts-grid { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .filter-bar { 
+    flex-direction: column; 
+    align-items: stretch;
+  }
+  .filter-group { min-width: 100%; }
   .connect-cards { grid-template-columns: 1fr; }
+  .page { padding: 20px; }
+  .topbar { padding: 12px 20px; }
+}
+
+@media (max-width: 600px) {
+  .kpi-grid { 
+    grid-template-columns: 1fr; 
+    gap: 8px;
+  }
+  .mail-header { 
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .mail-date { 
+    width: 100%;
+    text-align: left;
+    margin-left: 0 !important;
+  }
+  .btn-mark-read {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+  .topbar-title { font-size: 1em; }
+  .logo-mark { font-size: 1.4em; }
+}
+
+/* Fix for large screens */
+@media (min-width: 1920px) {
+  .page { 
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  .kpi-grid { 
+    max-width: 1400px;
+    margin: 0 auto 32px;
+  }
 }
 </style>
 </head>
@@ -498,6 +588,28 @@ body {
       <button class="btn btn-outline btn-sm" onclick="filterSidebar('')">📬 Tous les mails</button>
       <button class="btn btn-outline btn-sm" onclick="filterSidebar('🔴 URGENT')" style="color:var(--urgent);border-color:rgba(255,77,109,0.3);">🔴 Urgents seulement</button>
       <button class="btn btn-outline btn-sm" onclick="filterSidebar('unread')">📩 Non lus</button>
+    </div>
+  </div>
+
+  <!-- Filtres par période -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Période</div>
+    <div style="display:flex;flex-direction:column;gap:6px;" id="period-filters">
+      <button class="btn btn-outline btn-sm period-filter" onclick="filterByPeriod('all')" data-period="all">
+        📅 Tout <span class="filter-count" id="count-all">0</span>
+      </button>
+      <button class="btn btn-outline btn-sm period-filter" onclick="filterByPeriod('week')" data-period="week">
+        📆 Cette semaine <span class="filter-count" id="count-week">0</span>
+      </button>
+      <button class="btn btn-outline btn-sm period-filter" onclick="filterByPeriod('month')" data-period="month">
+        📆 Ce mois-ci <span class="filter-count" id="count-month">0</span>
+      </button>
+      <button class="btn btn-outline btn-sm period-filter" onclick="filterByPeriod('3months')" data-period="3months">
+        📆 3 derniers mois <span class="filter-count" id="count-3months">0</span>
+      </button>
+      <button class="btn btn-outline btn-sm period-filter" onclick="filterByPeriod('year')" data-period="year">
+        📆 Cette année <span class="filter-count" id="count-year">0</span>
+      </button>
     </div>
   </div>
 
@@ -1162,6 +1274,8 @@ function processAndDisplay() {
     return { ...m, ...analyse, suggestion: suggererReponse(m, analyse.priorite) };
   });
   filteredMails = [...allMails];
+  // Update period counts
+  updatePeriodCounts();
   // Apply default sorting (most interesting)
   applyFilters();
   document.getElementById('dashboard').style.display = 'block';
@@ -1293,6 +1407,65 @@ async function toggleReadStatus(event, idx) {
   updateKPIs();
   toast(newStatus ? '✅ Marqué comme lu' : '📩 Marqué comme non lu');
 }
+
+// ═══════════════════════════════════════════════
+// PERIOD FILTERS
+// ═══════════════════════════════════════════════
+let currentPeriod = 'all';
+
+function filterByPeriod(period) {
+  currentPeriod = period;
+  
+  // Update active state
+  document.querySelectorAll('.period-filter').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  const btn = document.querySelector(`[data-period="${period}"]`);
+  if (btn) btn.classList.add('active');
+  
+  // Apply filters
+  applyFilters();
+}
+
+function getMailsInPeriod(mails, period) {
+  if (period === 'all') return mails;
+  
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+  startOfWeek.setHours(0, 0, 0, 0);
+  
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const start3Months = new Date(now);
+  start3Months.setMonth(now.getMonth() - 3);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  
+  return mails.filter(m => {
+    const mailDate = parseDateFR(m.date);
+    if (period === 'week') return mailDate >= startOfWeek;
+    if (period === 'month') return mailDate >= startOfMonth;
+    if (period === '3months') return mailDate >= start3Months;
+    if (period === 'year') return mailDate >= startOfYear;
+    return true;
+  });
+}
+
+function updatePeriodCounts() {
+  const counts = {
+    all: allMails.length,
+    week: getMailsInPeriod(allMails, 'week').length,
+    month: getMailsInPeriod(allMails, 'month').length,
+    '3months': getMailsInPeriod(allMails, '3months').length,
+    year: getMailsInPeriod(allMails, 'year').length
+  };
+  
+  document.getElementById('count-all').textContent = counts.all;
+  document.getElementById('count-week').textContent = counts.week;
+  document.getElementById('count-month').textContent = counts.month;
+  document.getElementById('count-3months').textContent = counts['3months'];
+  document.getElementById('count-year').textContent = counts.year;
+}
+
 // ═══════════════════════════════════════════════
 // FILTERS
 // ═══════════════════════════════════════════════
@@ -1302,7 +1475,11 @@ function applyFilters() {
   const lu = document.getElementById('f-lu').value;
   const sortBy = document.getElementById('f-sort').value;
 
-  filteredMails = allMails.filter(m => {
+  // First filter by period
+  let periodFilteredMails = getMailsInPeriod(allMails, currentPeriod);
+  
+  // Then apply other filters
+  filteredMails = periodFilteredMails.filter(m => {
     const matchSearch = !search || m.sujet.toLowerCase().includes(search) || m.expediteur_nom.toLowerCase().includes(search);
     const matchPrio = !prio || m.priorite === prio;
     const matchLu = !lu || (lu === 'unread' ? !m.lu : m.lu);
